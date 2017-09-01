@@ -1,11 +1,3 @@
-"""
-This is a basic pairs trading algorithm that uses the optimize 
-WARNING: THIS IS A LEARNING EXAMPLE ONLY. DO NOT TRY TO TRADE SOMETHING THIS SIMPLE.
-https://www.quantopian.com/workshops
-https://www.quantopian.com/lectures
-
-For any questions, email max@quantopian.com
-"""
 import numpy as np
 import pandas as pd
 import quantopian.experimental.optimize as opt
