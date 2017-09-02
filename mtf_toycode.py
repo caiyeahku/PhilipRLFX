@@ -12,8 +12,8 @@ import time
 
 # 初始化空陣列函式
 def nullMatrix(n,m,q):
-    matrix = []
-    for i in range(n):
+	matrix = []
+	for i in range(n):
 		tmp = []
 		for j in range(m):
 			tmp.append(np.zeros((q,q), float))
