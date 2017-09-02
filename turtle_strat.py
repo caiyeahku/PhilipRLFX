@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import quantopian.experimental.optimize as opt
-import quantopian.algorithm as algo
 import talib
 
 def linreg(X, Y):
@@ -17,43 +15,40 @@ def linreg(X, Y):
     return (Sxy * N - Sy * Sx)/det
     
 def initialize(context):
-    """
-    Called once at the start of the algorithm.
-    """   
-    schedule_function(record_vars, date_rules.every_day(), time_rules.market_close(hours=1))
-    
+    schedule_function(record_vars, date_rules.every_day(), time_rules.market_close(minutes=60))
     context.market = symbol('FSLR')
-    
     context.holding = False
     
-
 def record_vars(context, data):
-    
-    # Get pricing history
     market = context.market
-    isholding = context.holding
     current_price = data.current(market, 'price')
-    ema_window = 20
-    t_window = 5
-    high = data.history(market, "high", bar_count=ema_window+t_window, frequency='1d')
-    low = data.history(market, "low", bar_count=ema_window+t_window, frequency='1d')
+    ema_window = 40
+    trend_window = 5
+    episode = 120
+    high = data.history(market, "high", bar_count=ema_window+episode, frequency='1m')
+    low = data.history(market, "low", bar_count=ema_window+episode, frequency='1m')
     
     high_ema = talib.EMA(high, timeperiod=ema_window)
     low_ema = talib.EMA(low, timeperiod=ema_window)
     hlmean = (np.array(high_ema) + np.array(low_ema))/2
 
-    trend = linreg(range(t_window), hlmean[-t_window:])
+    trends = []
+    for i in range(ema_window-2, len(hlmean)-trend_window-1):
+    	trends.append(linreg(range(trend_window), hlmean[i+1:i+trend_window+1]))
+    trend = trends[-1]
     
-    if trend>0 and not isholding:
+    buy_thresh = np.percentile(trends, 95)
+    sell_thresh = np.percentile(trends, 5)
+    
+    if trend>=buy_thresh and buy_thresh>=0 and not context.holding:
         order(context.market, 10000)
         context.holding = True
-    elif trend<=0 and isholding:
+    elif trend<=sell_thresh and context.holding:
         order_target_percent(context.market, 0)
         context.holding = False
     
-    
-    record(high_ema=high_ema[-1],low_ema=low_ema[-1], HLmean=hlmean[-1], 
-            trend=trend, curr_price=current_price)
+    record(HLmean=hlmean[-1], TREND=trend, PRICE=current_price,
+          buy_thresh=buy_thresh, sell_thresh=sell_thresh)
     
     
     
