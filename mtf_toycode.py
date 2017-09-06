@@ -3,7 +3,7 @@
 #        - all_ts      < 1 x N double > 時間序列資料
 #        - window_size < int > 資料窗格大小(類似技術指標的參數)
 #        - rolling_length < int > 每次滾動移動大小
-#            - 可以抓 window_size 的 1/8 ~ 1/10 做觀察, 若和 window_size 一樣，資料就不會重疊
+#            - 可以抓 window_size 的 1/8 ~ 1/10 做觀察
 #        - quantile_size < int > 分位數，就是可以快速地做 K 分位數 （當 quantile_size = 4 就會有四分位數 )
 #---------------------------------------------------------------------------------------------------------
 import pandas as pd
@@ -22,22 +22,22 @@ def nullMatrix(n,m,q):
     return np.array(matrix)
 
 # 用基本線性迴歸找到斜率, 求得趨勢
-def findTrend(x,y):
-    x , y = np.array(x) , np.array(y)
-    n = len(x)
-    m_x, m_y = np.mean(x), np.mean(y)
-    SS_xy = np.sum(y*x - n*m_y*m_x)
-    SS_xx = np.sum(x*x - n*m_x*m_x)
-    a = SS_xy / SS_xx
-    if a < 0:
-        return -1
-    elif a < 0:
+def findTrend(src,u=None,d=None):
+    n = len(src)
+    x , y = np.array([i for i in range(n)]) , np.array(src)
+    A = np.vstack([x, np.ones(n)]).T
+    a , _ = np.linalg.lstsq(A, y)[0]
+    if u==None or d==None:
+        return float(a)
+    elif a >= u and a > 0.0:
         return 1
+    elif a <= d and a < 0.0:
+        return -1
     else:
         return 0
-
+        
 # 主函式
-def MTF(all_ts, window_size, rolling_length, quantile_size):
+def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size):
 
     # 取得時間序列長度
     n = len(all_ts) 
@@ -69,10 +69,19 @@ def MTF(all_ts, window_size, rolling_length, quantile_size):
         # 整個窗格的資料先從輸入時間序列中取出來
         full_window_data =  list(all_ts[start_flag : start_flag+real_window_size])
         
+        # 設定Label的Window大小
+        label_window = 5
+        
+        # 從資料斜率的分佈來取得漲跌閥值 (藉由斜率分佈的一個標準差，來確認漲跌)
+        history_trend_data = []
+        for d in range(real_window_size-label_window):
+            history_trend_data.append(findTrend(full_window_data[d:d+label_window]))
+        trend_up_thresh = np.percentile(history_trend_data, 63)
+        trend_down_thresh = np.percentile(history_trend_data, 37)
+        
         # 製作Label
-        label_y = list(all_ts[start_flag+real_window_size : start_flag+real_window_size+5])
-        label_x = [i for i in range(len(label_y))]
-        new_label = findTrend(label_x, label_y)
+        label_source = list(all_ts[start_flag+real_window_size : start_flag+real_window_size+label_window])
+        new_label = findTrend(label_source, u=trend_up_thresh, d=trend_down_thresh)
         labels.append(new_label)
         
         # 從第 i 筆資料開始
@@ -174,21 +183,30 @@ def MTF(all_ts, window_size, rolling_length, quantile_size):
 
         
 def main():
-    data = pd.read_csv('EURUSD_m15.csv')
+    # 讀取檔案
+    data = pd.read_csv('USDJPY_1D.csv')
+    #data = data[:300].reset_index(drop=True) #debug
     data.dropna(inplace=True)
     
-    train_prices = data['CLOSE'][:-800]
-    train_prices.reset_index(drop=True, inplace=True)
-    test_prices = data['CLOSE'][-800:]
-    test_prices.reset_index(drop=True, inplace=True)
+    # 分配訓練資料和測試資料
+    test_data_amount = int(len(data['DATE'])/5)
+    train_prices = data['CLOSE'][:-test_data_amount]
+    test_prices = data['CLOSE'][-test_data_amount:]
     
-    X , Y = MTF(all_ts=train_prices, window_size=16, rolling_length=2, quantile_size=4)
+    # 取得「馬可夫轉移場矩陣」和「標記資料」
+    Features , Labels = MarkovTransitionField(all_ts=train_prices, window_size=50, rolling_length=5, quantile_size=4)
     
-    print(Y)
-        
+    # 輸出numpy矩陣為pickle檔(.pkl)
+    np.array(Features).dump('Features.pkl')
+    np.array(Labels).dump('Labels.pkl')
+    
+    # 檢查資料分布
+    unique, counts = np.unique(Labels, return_counts=True)
+    print('Data distribution:', dict(zip(unique, counts)))
+    
 if __name__ == "__main__":
     main()
-    
+
     
     
     
