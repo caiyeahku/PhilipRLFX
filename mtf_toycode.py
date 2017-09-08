@@ -212,11 +212,6 @@ def main():
     #data = data[:300].reset_index(drop=True) #debug
     data.dropna(inplace=True)
     
-    # 分配訓練資料和測試資料
-    test_data_amount = int(len(data['DATE'])/5)
-    train_prices = data['CLOSE'][:-test_data_amount]
-    test_prices = data['CLOSE'][-test_data_amount:]
-    
     # 取得「馬可夫轉移場矩陣（Features）」和「標記資料（Labels）」
     Window_Size = 50
     Rolling_Length = 5
