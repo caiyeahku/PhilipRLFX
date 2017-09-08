@@ -36,7 +36,6 @@ def findTrend(src,u=None,d=None):
         return -1
     else:
         return 0
-        
 
 # 繪製並輸出Miscellaneous圖
 def outputMiscellaneous(features, prices):
@@ -56,7 +55,6 @@ def outputMiscellaneous(features, prices):
         img = misc.toimage(new_features[index])
         img.save('misc/%04d.png'%(index))                   
     
-
 # 主函式
 def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, label_size):
 
@@ -213,11 +211,11 @@ def main():
     data.dropna(inplace=True)
     
     # 取得「馬可夫轉移場矩陣（Features）」和「標記資料（Labels）」
-    Window_Size = 50
-    Rolling_Length = 5
+    Window_Size = 20
+    Rolling_Length = 2
     Quantile_Size = 4
     Label_Size = 5
-    Features , Labels , Prices = MarkovTransitionField(all_ts=train_prices, 
+    Features , Labels , Prices = MarkovTransitionField(all_ts=data['CLOSE'], 
                                                         window_size=Window_Size, 
                                                         rolling_length=Rolling_Length, 
                                                         quantile_size=Quantile_Size,
