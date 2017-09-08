@@ -1,14 +1,15 @@
-# 寫一個函數來得到 MTF 
-# 輸入 : 
-#        - all_ts      < 1 x N double > 時間序列資料
-#        - window_size < int > 資料窗格大小(類似技術指標的參數)
-#        - rolling_length < int > 每次滾動移動大小
-#            - 可以抓 window_size 的 1/8 ~ 1/10 做觀察
-#        - quantile_size < int > 分位數，就是可以快速地做 K 分位數 （當 quantile_size = 4 就會有四分位數 )
+#   寫一個函數來得到 MTF 
+#   輸入 : 
+#       - all_ts            < 1 x N double > 時間序列資料
+#       - window_size       < int > 資料窗格大小（類似技術指標的參數）
+#       - rolling_length    < int > 每次滾動移動大小（可以抓 window_size 的 1/8 ~ 1/10 做觀察）
+#       - quantile_size     < int > 分位數，就是可以快速地做 K 分位數（當 quantile_size = 4 就會有四分位數）
+#       - label_size        < int > 看多久之後的趨勢線斜率
 #---------------------------------------------------------------------------------------------------------
 import pandas as pd
 import numpy as np
 import time
+import scipy.misc as misc
 from tqdm import trange
 
 # 初始化空陣列函式
@@ -36,8 +37,28 @@ def findTrend(src,u=None,d=None):
     else:
         return 0
         
+
+# 繪製並輸出Miscellaneous圖
+def outputMiscellaneous(features, prices):
+    # 先整合所有圖片
+    N = features.shape[0]
+    Q = int(np.sqrt(features.shape[1]))
+    W = features.shape[2]
+    new_features = np.zeros( (N, W*Q , W*Q), float )
+    for n in trange(N, desc="Combining..."):
+        for i in range(Q):
+            for j in range(Q):
+                for k in range(W):
+                    for l in range(W):
+                        new_features[n, i*W+k, j*W+l] = features[n, i*Q+j, k, l]
+    new_features.dump('Features4plot.pkl')
+    for index in trange(new_features.shape[0], desc="Drawing..."):
+        img = misc.toimage(new_features[index])
+        img.save('misc/%04d.png'%(index))                   
+    
+
 # 主函式
-def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size):
+def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, label_size):
 
     # 取得時間序列長度
     n = len(all_ts) 
@@ -54,11 +75,14 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size):
     # 最終的 MTF
     markov_field = nullMatrix(n_rolling_data, feature_size, window_size) 
     
-    # 宣告一個紀錄後三天趨勢的陣列（作為Label）
+    # 宣告一個紀錄後n天趨勢的陣列（作為Label）
     labels = []
     
+    # 紀錄價格，用來畫圖
+    Prices = []
+    
     # 開始從第一筆資料前進
-    for i_rolling_data in trange(n_rolling_data):
+    for i_rolling_data in trange(n_rolling_data, desc="Extracting..."):
     
         # 先宣告一個「矩陣的矩陣」
         this_markov_field =  nullMatrix(window_size, window_size, quantile_size)
@@ -69,18 +93,18 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size):
         # 整個窗格的資料先從輸入時間序列中取出來
         full_window_data =  list(all_ts[start_flag : start_flag+real_window_size])
         
-        # 設定Label的Window大小
-        label_window = 5
+        # 紀錄窗格的資料，用來畫圖
+        Prices.append(full_window_data)
         
         # 從資料斜率的分佈來取得漲跌閥值 (藉由斜率分佈的一個標準差，來確認漲跌)
         history_trend_data = []
-        for d in range(real_window_size-label_window):
-            history_trend_data.append(findTrend(full_window_data[d:d+label_window]))
+        for d in range(real_window_size-label_size):
+            history_trend_data.append(findTrend(full_window_data[d:d+label_size]))
         trend_up_thresh = np.percentile(history_trend_data, 63)
         trend_down_thresh = np.percentile(history_trend_data, 37)
         
         # 製作Label
-        label_source = list(all_ts[start_flag+real_window_size : start_flag+real_window_size+label_window])
+        label_source = list(all_ts[start_flag+real_window_size : start_flag+real_window_size+label_size])
         new_label = findTrend(label_source, u=trend_up_thresh, d=trend_down_thresh)
         labels.append(new_label)
         
@@ -172,14 +196,14 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size):
                             seperated_markov_matrix[i_window_size, j_window_size] = this_markov_matrix[i_quantile, j_quantile];
                         else:
                             # 如果 i j 太近沒矩陣，就放 0 
-                            seperated_markov_matrix[ i_window_size, j_window_size ] = 0
+                            seperated_markov_matrix[ i_window_size, j_window_size ] = 0.0
                 
                 # 再把拆分出來的矩陣，放到整個滾動資料的對應位置
                 markov_field[i_rolling_data,feature_count] = seperated_markov_matrix
                 feature_count += 1
             
         
-    return markov_field, labels
+    return markov_field, labels, Prices
 
         
 def main():
@@ -193,16 +217,34 @@ def main():
     train_prices = data['CLOSE'][:-test_data_amount]
     test_prices = data['CLOSE'][-test_data_amount:]
     
-    # 取得「馬可夫轉移場矩陣」和「標記資料」
-    Features , Labels = MarkovTransitionField(all_ts=train_prices, window_size=50, rolling_length=5, quantile_size=4)
+    # 取得「馬可夫轉移場矩陣（Features）」和「標記資料（Labels）」
+    Window_Size = 50
+    Rolling_Length = 5
+    Quantile_Size = 4
+    Label_Size = 5
+    Features , Labels , Prices = MarkovTransitionField(all_ts=train_prices, 
+                                                        window_size=Window_Size, 
+                                                        rolling_length=Rolling_Length, 
+                                                        quantile_size=Quantile_Size,
+                                                        label_size=Label_Size)
     
     # 輸出numpy矩陣為pickle檔(.pkl)
     np.array(Features).dump('Features.pkl')
     np.array(Labels).dump('Labels.pkl')
+    np.array(Prices).dump('Prices.pkl')
     
-    # 檢查資料分布
+    # 檢查Label分布（balance or imbalance?）
     unique, counts = np.unique(Labels, return_counts=True)
-    print('Data distribution:', dict(zip(unique, counts)))
+    print('Labels distribution:', dict(zip(unique, counts)))
+    
+    # 檢查Feature, Prices, Labels的shape
+    print('Features.shape: {}'.format(np.array(Features).shape))
+    print('Labels.shape: {}'.format(np.array(Labels).shape))
+    print('Prices.shape: {}'.format(np.array(Prices).shape))
+    
+    # 輸出所有Miscellaneous圖片
+    outputMiscellaneous(Features, Prices)
+    
     
 if __name__ == "__main__":
     main()
