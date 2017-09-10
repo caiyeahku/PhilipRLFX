@@ -6,14 +6,16 @@
 #       - quantile_size     < int > 分位數，就是可以快速地做 K 分位數（當 quantile_size = 4 就會有四分位數）
 #       - label_size        < int > 看多久之後的趨勢線斜率
 #---------------------------------------------------------------------------------------------------------
+
 import pandas as pd
 import numpy as np
 import time
 import scipy.misc as misc
 from tqdm import trange
+import os, errno
 
-# 初始化空陣列函式
-def nullMatrix(n,m,q):
+# 初始化Placeholder陣列函式
+def placeholderMatrix(n,m,q):
     matrix = []
     for i in range(n):
         tmp = []
@@ -23,22 +25,47 @@ def nullMatrix(n,m,q):
     return np.array(matrix)
 
 # 用基本線性迴歸找到斜率, 求得趨勢
-def findTrend(src,u=None,d=None):
+def findTrend(src,slope_thresh=None,residual_thresh=None):
+    
+    # 取得 Y 的數量
     n = len(src)
+    
+    # 令 X 為 0~n 的參數矩陣
     x , y = np.array([i for i in range(n)]) , np.array(src)
-    A = np.vstack([x, np.ones(n)]).T
-    a , _ = np.linalg.lstsq(A, y)[0]
-    if u==None or d==None:
-        return float(a)
-    elif a >= u and a > 0.0:
-        return 1
-    elif a <= d and a < 0.0:
-        return -1
+    x = np.vstack([x, np.ones(n)]).T
+    
+    # 執行線性回歸
+    LinReg = np.linalg.lstsq(x, y)
+    
+    # 取得斜率
+    slope = LinReg[0][0]
+    
+    # 取得所有點到回歸線的距離累加
+    residual = 9999
+    try:
+        residual = LinReg[1][0]
+    except:
+        pass
+    
+    # 如果沒有給予「閥值區間」, 則回傳斜率和距離總和
+    if slope_thresh==None or residual_thresh==None:
+        return slope, residual
+    # 如果距離總和夠小, 代表回歸線的準確度越高（變異數越小）
+    elif residual < residual_thresh:
+        # 若斜率夠大, 代表趨勢向上
+        if slope >= slope_thresh[0] and slope > 0.0:
+            return 1
+        # 若斜率夠小, 代表趨勢向下
+        elif slope <= slope_thresh[1] and slope < 0.0:
+            return -1
+        else:
+            return 0
     else:
         return 0
 
 # 繪製並輸出Miscellaneous圖
 def outputMiscellaneous(features, prices):
+
     # 先整合所有圖片
     N = features.shape[0]
     Q = int(np.sqrt(features.shape[1]))
@@ -50,7 +77,18 @@ def outputMiscellaneous(features, prices):
                 for k in range(W):
                     for l in range(W):
                         new_features[n, i*W+k, j*W+l] = features[n, i*Q+j, k, l]
+    
+    # 輸出圖片的pickle檔(.pkl)
     new_features.dump('Features4plot.pkl')
+    
+    # 確認misc資料夾存在
+    try:
+        os.makedirs("misc")
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+    
+    # 開始繪製Miscellaneous圖片
     for index in trange(new_features.shape[0], desc="Drawing..."):
         img = misc.toimage(new_features[index])
         img.save('misc/%04d.png'%(index))                   
@@ -71,7 +109,7 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
     feature_size = quantile_size * quantile_size 
     
     # 最終的 MTF
-    markov_field = nullMatrix(n_rolling_data, feature_size, window_size) 
+    markov_field = placeholderMatrix(n_rolling_data, feature_size, window_size) 
     
     # 宣告一個紀錄後n天趨勢的陣列（作為Label）
     labels = []
@@ -83,7 +121,7 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
     for i_rolling_data in trange(n_rolling_data, desc="Extracting..."):
     
         # 先宣告一個「矩陣的矩陣」
-        this_markov_field =  nullMatrix(window_size, window_size, quantile_size)
+        this_markov_field =  placeholderMatrix(window_size, window_size, quantile_size)
         
         # 起始位置
         start_flag = i_rolling_data*rolling_length
@@ -95,15 +133,20 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
         Prices.append(full_window_data)
         
         # 從資料斜率的分佈來取得漲跌閥值 (藉由斜率分佈的一個標準差，來確認漲跌)
-        history_trend_data = []
+        history_slope_data = []
+        history_residual_data = []
         for d in range(real_window_size-label_size):
-            history_trend_data.append(findTrend(full_window_data[d:d+label_size]))
-        trend_up_thresh = np.percentile(history_trend_data, 63)
-        trend_down_thresh = np.percentile(history_trend_data, 37)
+            this_slope, this_residual = findTrend(full_window_data[d:d+label_size])
+            history_slope_data.append(this_slope)
+            history_residual_data.append(this_residual)
+        slope_up_thresh = np.percentile(history_slope_data, 63)
+        slope_down_thresh = np.percentile(history_slope_data, 37)
+        Slope_Thresh = [slope_up_thresh, slope_down_thresh]
+        Residual_Thresh = np.percentile(history_residual_data, 50)
         
         # 製作Label
         label_source = list(all_ts[start_flag+real_window_size : start_flag+real_window_size+label_size])
-        new_label = findTrend(label_source, u=trend_up_thresh, d=trend_down_thresh)
+        new_label = findTrend(label_source, slope_thresh=Slope_Thresh, residual_thresh=Residual_Thresh)
         labels.append(new_label)
         
         # 從第 i 筆資料開始
@@ -207,14 +250,13 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
 def main():
     # 讀取檔案
     data = pd.read_csv('USDJPY_1D.csv')
-    #data = data[:300].reset_index(drop=True) #debug
     data.dropna(inplace=True)
     
     # 取得「馬可夫轉移場矩陣（Features）」和「標記資料（Labels）」
     Window_Size = 20
     Rolling_Length = 2
     Quantile_Size = 4
-    Label_Size = 5
+    Label_Size = 4
     Features , Labels , Prices = MarkovTransitionField(all_ts=data['CLOSE'], 
                                                         window_size=Window_Size, 
                                                         rolling_length=Rolling_Length, 
