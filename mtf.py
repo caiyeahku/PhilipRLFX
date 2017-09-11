@@ -11,8 +11,9 @@ import pandas as pd
 import numpy as np
 import time
 import scipy.misc as misc
-from tqdm import trange
 import os, errno
+from sys import argv
+from tqdm import trange
 
 # 初始化Placeholder陣列函式
 def placeholderMatrix(n,m,q):
@@ -249,7 +250,7 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
         
 def main():
     # 讀取檔案
-    data = pd.read_csv('USDJPY_1D.csv')
+    data = pd.read_csv(argv[1])
     data.dropna(inplace=True)
     
     # 取得「馬可夫轉移場矩陣（Features）」和「標記資料（Labels）」
