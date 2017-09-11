@@ -20,14 +20,14 @@ testLabels = np_utils.to_categorical(testLabels, 3)
 
 print("[INFO] compiling model...")
 opt = SGD(lr=0.01)
-model = LeNet.build(width=80, height=80, depth=1, classes=3)
+model = LeNet(width=80, height=80, depth=1, classes=3)
 model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.fit(trainData, trainLabels, batch_size=128, nb_epoch=20, verbose=1)
 
 print("[INFO] evaluating...")
 (loss, accuracy) = model.evaluate(testData, testLabels,
 	batch_size=128, verbose=1)
-print("[INFO] accuracy: {:.2f}%".format(accuracy * 100))
+print("\n[INFO] accuracy: {:.2f}%".format(accuracy * 100))
 
 
 
