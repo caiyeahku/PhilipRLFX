@@ -27,7 +27,7 @@ trainLabels = np_utils.to_categorical(trainLabels, 3)
 testLabels = np_utils.to_categorical(testLabels, 3)
 
 print("[INFO] compiling model...")
-model = alexnet(width=WIDTH, height=HEIGHT, lr=LR)
+model = AlexNet(width=WIDTH, height=HEIGHT, lr=LR)
 
 print("[INFO] training...")
 model.fit({'input': trainData}, {'targets': trainLabels},
