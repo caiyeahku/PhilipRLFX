@@ -182,3 +182,6 @@ def BBANDS_signal(context, data):
            B_MID = BB_middle,
            BB1_LOW = BB1_lower,
            BB2_LOW = BB2_lower)
+	
+	
+	
