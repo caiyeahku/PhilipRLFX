@@ -15,12 +15,12 @@ data = dataset[:, :, :, np.newaxis]
 (trainData, testData, trainLabels, testLabels) = train_test_split(
 	data, labelset, test_size=0.2)
 
-trainLabels = np_utils.to_categorical(trainLabels, 3)
-testLabels = np_utils.to_categorical(testLabels, 3)
+trainLabels = np_utils.to_categorical(trainLabels)
+testLabels = np_utils.to_categorical(testLabels)
 
 print("[INFO] compiling model...")
 opt = SGD(lr=0.01)
-model = LeNet(width=80, height=80, depth=1, classes=3)
+model = LeNet(width=dataset.shape[1], height=dataset.shape[2], depth=1, classes=len(np.unique(labelset)))
 model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.fit(trainData, trainLabels, batch_size=128, nb_epoch=20, verbose=1)
 
