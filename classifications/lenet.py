@@ -2,7 +2,7 @@ from keras.models import Sequential
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.core import Activation, Flatten, Dense
 
-def LeNet(width, height, depth, classes):
+def LeNet(width, height, depth=1, classes):
     model = Sequential()
 
     # CONV => RELU => POOL

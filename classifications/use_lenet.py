@@ -1,10 +1,9 @@
+import numpy as np
 from lenet import LeNet
 from sklearn.cross_validation import train_test_split
 from keras.optimizers import SGD
 from keras.utils import np_utils
 from sys import argv
-import numpy as np
-
 
 print("[INFO] loading DATA...")
 dataset = np.load(argv[1])
