@@ -1,6 +1,5 @@
 from lenet import LeNet
 from sklearn.cross_validation import train_test_split
-from sklearn import datasets
 from keras.optimizers import SGD
 from keras.utils import np_utils
 from sys import argv
