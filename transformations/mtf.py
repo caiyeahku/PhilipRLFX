@@ -9,7 +9,6 @@
 
 import pandas as pd
 import numpy as np
-import time
 import scipy.misc as misc
 import os, errno
 from sys import argv
@@ -65,7 +64,7 @@ def findTrend(src,slope_thresh=None,residual_thresh=None):
         return 0
 
 # 繪製並輸出Miscellaneous圖
-def outputMiscellaneous(features, prices):
+def outputMiscellaneous(features):
 
     # 先整合所有圖片
     N = features.shape[0]
@@ -80,11 +79,11 @@ def outputMiscellaneous(features, prices):
                         new_features[n, i*W+k, j*W+l] = features[n, i*Q+j, k, l]
     
     # 輸出圖片的pickle檔(.pkl)
-    new_features.dump('Features4plot.pkl')
+    new_features.dump('mtf_Features4plot.pkl')
     
     # 確認misc資料夾存在
     try:
-        os.makedirs("misc")
+        os.makedirs("mtf_misc")
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
@@ -92,7 +91,7 @@ def outputMiscellaneous(features, prices):
     # 開始繪製Miscellaneous圖片
     for index in trange(new_features.shape[0], desc="Drawing..."):
         img = misc.toimage(new_features[index])
-        img.save('misc/%04d.png'%(index))                   
+        img.save('mtf_misc/%04d.png'%(index))                   
     
 # 主函式
 def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, label_size):
@@ -245,7 +244,7 @@ def MarkovTransitionField(all_ts, window_size, rolling_length, quantile_size, la
                 feature_count += 1
             
         
-    return markov_field, labels, Prices
+    return np.array(markov_field), np.array(labels), np.array(Prices)
 
         
 def main():
@@ -265,9 +264,9 @@ def main():
                                                         label_size=Label_Size)
     
     # 輸出numpy矩陣為pickle檔(.pkl)
-    np.array(Features).dump('Features.pkl')
-    np.array(Labels).dump('Labels.pkl')
-    np.array(Prices).dump('Prices.pkl')
+    Features.dump('mtf_Features.pkl')
+    Labels.dump('mtf_Labels.pkl')
+    Prices.dump('mtf_Prices.pkl')
     
     # 檢查Label分布（balance or imbalance?）
     unique, counts = np.unique(Labels, return_counts=True)
@@ -279,7 +278,7 @@ def main():
     print('Prices.shape: {}'.format(np.array(Prices).shape))
     
     # 輸出所有Miscellaneous圖片
-    outputMiscellaneous(Features, Prices)
+    outputMiscellaneous(Features)
     
     
 if __name__ == "__main__":
